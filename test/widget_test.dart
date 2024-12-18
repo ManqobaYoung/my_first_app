@@ -1,30 +1,37 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-
-import 'package:my_first_app/main.dart';
+import 'package:my_first_app/main.dart'; // Adjust the import path if your app's main file is in a different location
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  testWidgets('To-Do List app smoke test', (WidgetTester tester) async {
+    // Build the To-Do app and trigger a frame.
+    await tester.pumpWidget(const ToDoApp());
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    // Verify the splash screen is displayed.
+    expect(find.text("-MR - MASON-"), findsOneWidget);
+    expect(find.byType(Image), findsOneWidget);
 
-    // Tap the '+' icon and trigger a frame.
+    // Wait for the splash screen to transition.
+    await tester.pump(const Duration(seconds: 3));
+    await tester.pumpAndSettle();
+
+    // Verify the main to-do list page is displayed.
+    expect(find.text("To-Do List"), findsOneWidget);
+    expect(find.byType(DropdownButton<String>), findsOneWidget);
+
+    // Add a task to the default user (Mom).
     await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+    await tester.pumpAndSettle();
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    // Verify the add task dialog is displayed.
+    expect(find.text("Add New Task for Mom"), findsOneWidget);
+
+    // Enter a task and confirm.
+    await tester.enterText(find.byType(TextField), "New Task");
+    await tester.tap(find.text("Add"));
+    await tester.pumpAndSettle();
+
+    // Verify the task is added.
+    expect(find.text("New Task"), findsOneWidget);
   });
 }

@@ -1,20 +1,27 @@
 import 'package:flutter/material.dart';
-import 'dart:async'; // To use Future.delayed
+import 'dart:async';
+import 'dart:convert';
+import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
-  runApp(ToDoApp());
+  runApp(const ToDoApp());
 }
 
 class ToDoApp extends StatelessWidget {
+  const ToDoApp({super.key});
+
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      home: SplashScreen(), // Set SplashScreen as the initial screen
+    return const MaterialApp(
+      home: SplashScreen(),
     );
   }
 }
 
 class SplashScreen extends StatefulWidget {
+  const SplashScreen({super.key});
+
   @override
   _SplashScreenState createState() => _SplashScreenState();
 }
@@ -23,11 +30,12 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    // Navigate to the main page after 3 seconds
-    Timer(Duration(seconds: 3), () {
-      Navigator.of(context).pushReplacement(MaterialPageRoute(
-        builder: (context) => ToDoListPage(), // Main page
-      ));
+    Timer(const Duration(seconds: 3), () {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (context) => const ToDoListPage(),
+        ),
+      );
     });
   }
 
@@ -40,10 +48,11 @@ class _SplashScreenState extends State<SplashScreen> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Image.asset(
-                '/home/manqoba-young/Downloads/depositphotos_582842176-stock-illustration-african-mammal-logo-african-continent.jpg'), // Display your Africa image
-            SizedBox(height: 20),
-            Text(
-              "-MR - MASON-", // The text below the image
+              'assets/depositphotos_582842176-stock-illustration-african-mammal-logo-african-continent.jpg',
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              "-MR - MASON-",
               style: TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
@@ -57,6 +66,8 @@ class _SplashScreenState extends State<SplashScreen> {
 }
 
 class ToDoListPage extends StatefulWidget {
+  const ToDoListPage({super.key});
+
   @override
   _ToDoListPageState createState() => _ToDoListPageState();
 }
@@ -74,83 +85,158 @@ class _ToDoListPageState extends State<ToDoListPage> {
     "Team A": [
       {"title": "Check materials", "done": false},
       {"title": "Team meeting", "done": false},
-    ]
+    ],
   };
 
   final TextEditingController _taskController = TextEditingController();
-  String _selectedUser = "Mom"; // Default selected user
+  String _selectedUser = "Mom";
+
+  @override
+  void initState() {
+    super.initState();
+    _loadTasks();
+  }
+
+  void _saveTasks() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    prefs.setString('tasks', jsonEncode(usersTasks));
+  }
+
+  void _loadTasks() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? tasksString = prefs.getString('tasks');
+    if (tasksString != null) {
+      setState(() {
+        usersTasks.clear();
+        Map<String, dynamic> decodedTasks = jsonDecode(tasksString);
+        decodedTasks.forEach((key, value) {
+          usersTasks[key] = List<Map<String, dynamic>>.from(value);
+        });
+        _selectedUser = usersTasks.keys.first;
+      });
+    }
+  }
 
   void _showAddTaskDialog() {
+    bool isAddingUser = false;
     showDialog(
       context: context,
       builder: (BuildContext context) {
-        return AlertDialog(
-          title: Text("Add New Task for $_selectedUser"),
-          content: TextField(
-            controller: _taskController,
-            decoration: InputDecoration(hintText: "Enter task name"),
-          ),
-          actions: <Widget>[
-            ElevatedButton(
-              child: Text("Cancel"),
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-            ),
-            ElevatedButton(
-              child: Text("Add"),
-              onPressed: () {
-                setState(() {
-                  if (_taskController.text.isNotEmpty) {
-                    usersTasks[_selectedUser]!.add({"title": _taskController.text, "done": false});
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: Text(isAddingUser ? "Add New User" : "Add New Task for $_selectedUser"),
+              content: TextField(
+                controller: _taskController,
+                decoration: InputDecoration(
+                  hintText: isAddingUser ? "Enter user name" : "Enter task name",
+                ),
+              ),
+              actions: <Widget>[
+                TextButton(
+                  child: Text(isAddingUser ? "Switch to Task" : "Switch to User"),
+                  onPressed: () {
+                    setState(() {
+                      isAddingUser = !isAddingUser;
+                    });
+                  },
+                ),
+                ElevatedButton(
+                  child: const Text("Cancel"),
+                  onPressed: () {
                     _taskController.clear();
-                  }
-                });
-                Navigator.of(context).pop();
-              },
-            ),
-          ],
+                    Navigator.of(context).pop();
+                  },
+                ),
+                ElevatedButton(
+                  child: const Text("Add"),
+                  onPressed: () {
+                    setState(() {
+                      if (_taskController.text.isNotEmpty) {
+                        if (isAddingUser) {
+                          if (!usersTasks.containsKey(_taskController.text)) {
+                            usersTasks[_taskController.text] = [];
+                          }
+                        } else {
+                          usersTasks[_selectedUser]!.add({"title": _taskController.text, "done": false});
+                        }
+                        _taskController.clear();
+                      }
+                    });
+                    Navigator.of(context).pop();
+                    _saveTasks();
+                  },
+                ),
+              ],
+            );
+          },
         );
       },
     );
   }
 
+  void _deleteUser(String user) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Delete User"),
+        content: Text("Are you sure you want to delete $user and all their tasks?"),
+        actions: [
+          TextButton(
+            child: const Text("Cancel"),
+            onPressed: () {
+              Navigator.of(context).pop();
+            },
+          ),
+          ElevatedButton(
+            child: const Text("Delete"),
+            onPressed: () {
+              setState(() {
+                usersTasks.remove(user);
+                if (_selectedUser == user && usersTasks.isNotEmpty) {
+                  _selectedUser = usersTasks.keys.first;
+                }
+              });
+              Navigator.of(context).pop();
+              _saveTasks();
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildTaskList(String user) {
     return ExpansionTile(
-      title: Text(user),
-      children: [
-        for (int i = 0; i < usersTasks[user]!.length; i++)
-          ListTile(
-            leading: GestureDetector(
-              onTap: () {
-                setState(() {
-                  usersTasks[user]![i]['done'] = !usersTasks[user]![i]['done'];
-                });
-              },
-              child: Container(
-                width: 20,
-                height: 20,
-                color: usersTasks[user]![i]['done'] ? Colors.green : Colors.red,
-              ),
-            ),
-            title: Text(
-              "${i + 1}. ${usersTasks[user]![i]['title']}",
-              style: TextStyle(
-                decoration: usersTasks[user]![i]['done']
-                    ? TextDecoration.lineThrough
-                    : TextDecoration.none,
-              ),
-            ),
-            trailing: IconButton(
-              icon: Icon(Icons.delete),
-              onPressed: () {
-                setState(() {
-                  usersTasks[user]!.removeAt(i);
-                });
-              },
+      title: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(user),
+          IconButton(
+            icon: const Icon(Icons.delete),
+            onPressed: () => _deleteUser(user),
+          ),
+        ],
+      ),
+      children: usersTasks[user]!.map((task) {
+        return ListTile(
+          title: Text(
+            task['title'],
+            style: TextStyle(
+              decoration: task['done'] ? TextDecoration.lineThrough : null,
             ),
           ),
-      ],
+          trailing: Checkbox(
+            value: task['done'],
+            onChanged: (bool? value) {
+              setState(() {
+                task['done'] = value!;
+              });
+              _saveTasks();
+            },
+          ),
+        );
+      }).toList(),
     );
   }
 
@@ -158,33 +244,34 @@ class _ToDoListPageState extends State<ToDoListPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: DropdownButton<String>(
-          value: _selectedUser,
-          onChanged: (String? newUser) {
-            setState(() {
-              _selectedUser = newUser!;
-            });
-          },
-          items: usersTasks.keys.map<DropdownMenuItem<String>>((String user) {
-            return DropdownMenuItem<String>(
-              value: user,
-              child: Text(user),
-            );
-          }).toList(),
-        ),
-        actions: [
-          IconButton(icon: Icon(Icons.menu), onPressed: () {}),
-          IconButton(icon: Icon(Icons.account_circle), onPressed: () {}),
-        ],
-        backgroundColor: Colors.blue,
+        title: const Text("To-Do List"),
       ),
-      body: ListView(
-        children: usersTasks.keys.map((user) => _buildTaskList(user)).toList(),
+      body: Column(
+        children: [
+          DropdownButton<String>(
+            value: _selectedUser,
+            onChanged: (String? newValue) {
+              setState(() {
+                _selectedUser = newValue!;
+              });
+            },
+            items: usersTasks.keys.map<DropdownMenuItem<String>>((String user) {
+              return DropdownMenuItem<String>(
+                value: user,
+                child: Text(user),
+              );
+            }).toList(),
+          ),
+          Expanded(
+            child: ListView(
+              children: usersTasks.keys.map((user) => _buildTaskList(user)).toList(),
+            ),
+          ),
+        ],
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: _showAddTaskDialog,
-        child: Icon(Icons.add),
-        backgroundColor: Colors.blue,
+        child: const Icon(Icons.add),
       ),
     );
   }
